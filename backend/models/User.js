@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const bcrypt = require('bcryptjs');
 
 const userSchema = new mongoose.Schema({
   name: { type: String, required: true },
@@ -7,5 +8,19 @@ const userSchema = new mongoose.Schema({
   role: { type: String, enum: ['organization', 'participant', 'admin'], required: true },
   createdAt: { type: Date, default: Date.now }
 });
+
+// Hash password before saving, but only if it was changed
+// No 'next' here on purpose — async pre-save hooks in Mongoose resolve via
+// the returned promise, they don't get passed a next callback.
+userSchema.pre('save', async function () {
+  if (!this.isModified('password')) return;
+  const salt = await bcrypt.genSalt(10);
+  this.password = await bcrypt.hash(this.password, salt);
+});
+
+// Compare a plain password against the hashed one
+userSchema.methods.comparePassword = async function (enteredPassword) {
+  return bcrypt.compare(enteredPassword, this.password);
+};
 
 module.exports = mongoose.model('User', userSchema);
